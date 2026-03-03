@@ -119,6 +119,51 @@ describe('ProviderService', () => {
       const updated = await ProviderService.getById(created.id)
       expect(updated!.apiKey).toBe('updated-key')
     })
+
+    it('should encrypt and decrypt OAuth tokens', async () => {
+      const created = await ProviderService.create({
+        name: 'OpenAI OAuth',
+        type: 'openai' as const,
+        apiKey: 'placeholder-key',
+        authType: 'oauth',
+        oauthProvider: 'openai-codex',
+        oauthAccessToken: 'oauth-access-token',
+        oauthRefreshToken: 'oauth-refresh-token',
+      })
+
+      const dbProvider = (await testDb.sqlite
+        .prepare('SELECT * FROM providers WHERE id = ?')
+        .get(created.id)) as any
+
+      expect(dbProvider.oauth_access_token).toContain(':')
+      expect(dbProvider.oauth_refresh_token).toContain(':')
+      expect(dbProvider.oauth_access_token).not.toBe('oauth-access-token')
+      expect(dbProvider.oauth_refresh_token).not.toBe('oauth-refresh-token')
+
+      const retrieved = await ProviderService.getById(created.id)
+      expect(retrieved?.authType).toBe('oauth')
+      expect(retrieved?.oauthAccessToken).toBe('oauth-access-token')
+      expect(retrieved?.oauthRefreshToken).toBe('oauth-refresh-token')
+    })
+
+    it('should keep existing API key when OAuth credentials are updated', async () => {
+      const created = await ProviderService.create({
+        name: 'OpenAI Hybrid',
+        type: 'openai' as const,
+        apiKey: 'sk-original-key',
+      })
+
+      await ProviderService.setOAuthCredentials(created.id, {
+        oauthAccessToken: 'oauth-access-token',
+        oauthRefreshToken: 'oauth-refresh-token',
+        oauthProvider: 'openai-codex',
+      })
+
+      const updated = await ProviderService.getById(created.id)
+      expect(updated?.authType).toBe('oauth')
+      expect(updated?.apiKey).toBe('sk-original-key')
+      expect(updated?.oauthAccessToken).toBe('oauth-access-token')
+    })
   })
 
   describe('CRUD 操作测试', () => {

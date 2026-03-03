@@ -455,7 +455,7 @@ describe('ChatStore', () => {
       expect(mockSendMessageStream).toHaveBeenCalledWith(
         'openai',
         expect.any(Array),
-        expect.objectContaining({ apiKey: 'key', model: 'gpt-4' }),
+        expect.objectContaining({ apiKey: 'mock-api-key', model: 'gpt-4' }),
         expect.any(Function),
         expect.any(AbortSignal),
         expect.objectContaining({ allowOnceTools: ['Bash'] })
@@ -493,7 +493,7 @@ describe('ChatStore', () => {
 
       await useChatStore.getState().approveToolCall('conv-1', 'Bash', 'once')
 
-      expect(useChatStore.getState().error).toBe('Provider API key missing')
+      expect(useChatStore.getState().error).toBe('Provider auth missing')
       expect(mockSendMessageStream).not.toHaveBeenCalled()
     })
 
@@ -753,7 +753,7 @@ describe('ChatStore', () => {
 
       await useChatStore.getState().denyToolCall('conv-1', 'Bash', 'tc-1')
 
-      expect(useChatStore.getState().error).toBe('Provider API key missing')
+      expect(useChatStore.getState().error).toBe('Provider auth missing')
       expect(mockSendMessageStream).not.toHaveBeenCalled()
     })
 
@@ -1010,6 +1010,7 @@ describe('ChatStore', () => {
         id: 'conv-1',
         messages: [{ id: '1', role: 'user', content: 'Hello world' }],
       }
+      mockConversations.value = [mockConversation]
       mockGetCurrentConversation.mockReturnValue(mockConversation)
       mockSendMessageStream.mockResolvedValue(undefined)
 
@@ -1029,6 +1030,7 @@ describe('ChatStore', () => {
         id: 'conv-1',
         messages: [{ id: '1', role: 'user', content: longMessage }],
       }
+      mockConversations.value = [mockConversation]
       mockGetCurrentConversation.mockReturnValue(mockConversation)
       mockSendMessageStream.mockResolvedValue(undefined)
 
@@ -1051,6 +1053,7 @@ describe('ChatStore', () => {
           { id: '3', role: 'user', content: 'Second' },
         ],
       }
+      mockConversations.value = [mockConversation]
       mockGetCurrentConversation.mockReturnValue(mockConversation)
       mockSendMessageStream.mockResolvedValue(undefined)
 

@@ -55,6 +55,24 @@ vi.mock('../dbClient', () => {
         delete: async (id: string) => mockInvoke('db:providers:delete', { id }),
         toggleEnabled: async (id: string) =>
           mockInvoke('db:providers:toggleEnabled', { id }),
+        resolveCredentials: async (id: string) =>
+          mockInvoke('db:providers:resolveCredentials', { id }),
+        oauthImportOpenClaw: async (id: string) =>
+          mockInvoke('db:providers:oauthImportOpenClaw', { id }),
+        oauthStartLogin: async (id: string) =>
+          mockInvoke('db:providers:oauthStartLogin', { id }),
+        oauthGetLoginSession: async (sessionId: string) =>
+          mockInvoke('db:providers:oauthGetLoginSession', { sessionId }),
+        oauthCancelLogin: async (sessionId: string) =>
+          mockInvoke('db:providers:oauthCancelLogin', { sessionId }),
+        oauthSetManual: async (id: string, data: any) =>
+          mockInvoke('db:providers:oauthSetManual', { id, data }),
+        oauthStatus: async (id: string) =>
+          mockInvoke('db:providers:oauthStatus', { id }),
+        oauthLogout: async (id: string) =>
+          mockInvoke('db:providers:oauthLogout', { id }),
+        fetchModels: async (id: string, options?: any) =>
+          mockInvoke('db:providers:fetchModels', { id, options }),
       },
       models: {
         getAll: async () => mockInvoke('db:models:getAll'),
@@ -256,6 +274,52 @@ describe('dbClient', () => {
       await dbClient.providers.toggleEnabled('p-1')
       expect(mockInvoke).toHaveBeenCalledWith('db:providers:toggleEnabled', {
         id: 'p-1',
+      })
+    })
+
+    it('oauthStartLogin should invoke with id', async () => {
+      mockInvoke.mockResolvedValue({})
+      await dbClient.providers.oauthStartLogin('p-1')
+      expect(mockInvoke).toHaveBeenCalledWith('db:providers:oauthStartLogin', {
+        id: 'p-1',
+      })
+    })
+
+    it('oauthGetLoginSession should invoke with sessionId', async () => {
+      mockInvoke.mockResolvedValue({})
+      await dbClient.providers.oauthGetLoginSession('session-1')
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'db:providers:oauthGetLoginSession',
+        {
+          sessionId: 'session-1',
+        }
+      )
+    })
+
+    it('oauthCancelLogin should invoke with sessionId', async () => {
+      mockInvoke.mockResolvedValue({})
+      await dbClient.providers.oauthCancelLogin('session-1')
+      expect(mockInvoke).toHaveBeenCalledWith('db:providers:oauthCancelLogin', {
+        sessionId: 'session-1',
+      })
+    })
+
+    it('fetchModels should invoke with id and options', async () => {
+      mockInvoke.mockResolvedValue({})
+      await dbClient.providers.fetchModels('p-1', {
+        onlyCreateNew: true,
+        enableNewModels: false,
+        nameFilter: 'gpt',
+        dryRun: true,
+      })
+      expect(mockInvoke).toHaveBeenCalledWith('db:providers:fetchModels', {
+        id: 'p-1',
+        options: {
+          onlyCreateNew: true,
+          enableNewModels: false,
+          nameFilter: 'gpt',
+          dryRun: true,
+        },
       })
     })
   })

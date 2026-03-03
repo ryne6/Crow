@@ -275,6 +275,108 @@ function runSchemaMigrations(sqlite: Database.Database) {
       )
       console.log('✅ Added conversation token stats columns')
     }
+
+    // Provider OAuth columns
+    const providerColumns = sqlite.pragma('table_info(providers)') as {
+      name: string
+    }[]
+    const hasAuthType = providerColumns.some(col => col.name === 'auth_type')
+    if (!hasAuthType) {
+      console.log('📦 Adding auth_type column to providers table...')
+      sqlite.exec(
+        "ALTER TABLE providers ADD COLUMN auth_type TEXT NOT NULL DEFAULT 'api_key'"
+      )
+      console.log('✅ Added auth_type column')
+    }
+
+    const hasOauthProvider = providerColumns.some(
+      col => col.name === 'oauth_provider'
+    )
+    if (!hasOauthProvider) {
+      console.log('📦 Adding oauth_provider column to providers table...')
+      sqlite.exec('ALTER TABLE providers ADD COLUMN oauth_provider TEXT')
+      console.log('✅ Added oauth_provider column')
+    }
+
+    const hasOauthAutoFetchModels = providerColumns.some(
+      col => col.name === 'oauth_auto_fetch_models'
+    )
+    if (!hasOauthAutoFetchModels) {
+      console.log('📦 Adding oauth_auto_fetch_models column to providers table...')
+      sqlite.exec(
+        'ALTER TABLE providers ADD COLUMN oauth_auto_fetch_models INTEGER NOT NULL DEFAULT 0'
+      )
+      console.log('✅ Added oauth_auto_fetch_models column')
+    }
+
+    const hasModelSyncOnlyCreate = providerColumns.some(
+      col => col.name === 'model_sync_only_create'
+    )
+    if (!hasModelSyncOnlyCreate) {
+      console.log('📦 Adding model_sync_only_create column to providers table...')
+      sqlite.exec(
+        'ALTER TABLE providers ADD COLUMN model_sync_only_create INTEGER NOT NULL DEFAULT 0'
+      )
+      console.log('✅ Added model_sync_only_create column')
+    }
+
+    const hasModelSyncEnableNewModels = providerColumns.some(
+      col => col.name === 'model_sync_enable_new_models'
+    )
+    if (!hasModelSyncEnableNewModels) {
+      console.log(
+        '📦 Adding model_sync_enable_new_models column to providers table...'
+      )
+      sqlite.exec(
+        'ALTER TABLE providers ADD COLUMN model_sync_enable_new_models INTEGER NOT NULL DEFAULT 1'
+      )
+      console.log('✅ Added model_sync_enable_new_models column')
+    }
+
+    const hasModelSyncNameFilter = providerColumns.some(
+      col => col.name === 'model_sync_name_filter'
+    )
+    if (!hasModelSyncNameFilter) {
+      console.log('📦 Adding model_sync_name_filter column to providers table...')
+      sqlite.exec('ALTER TABLE providers ADD COLUMN model_sync_name_filter TEXT')
+      console.log('✅ Added model_sync_name_filter column')
+    }
+
+    const hasOauthAccessToken = providerColumns.some(
+      col => col.name === 'oauth_access_token'
+    )
+    if (!hasOauthAccessToken) {
+      console.log('📦 Adding oauth_access_token column to providers table...')
+      sqlite.exec('ALTER TABLE providers ADD COLUMN oauth_access_token TEXT')
+      console.log('✅ Added oauth_access_token column')
+    }
+
+    const hasOauthRefreshToken = providerColumns.some(
+      col => col.name === 'oauth_refresh_token'
+    )
+    if (!hasOauthRefreshToken) {
+      console.log('📦 Adding oauth_refresh_token column to providers table...')
+      sqlite.exec('ALTER TABLE providers ADD COLUMN oauth_refresh_token TEXT')
+      console.log('✅ Added oauth_refresh_token column')
+    }
+
+    const hasOauthExpiresAt = providerColumns.some(
+      col => col.name === 'oauth_expires_at'
+    )
+    if (!hasOauthExpiresAt) {
+      console.log('📦 Adding oauth_expires_at column to providers table...')
+      sqlite.exec('ALTER TABLE providers ADD COLUMN oauth_expires_at INTEGER')
+      console.log('✅ Added oauth_expires_at column')
+    }
+
+    const hasOauthAccountEmail = providerColumns.some(
+      col => col.name === 'oauth_account_email'
+    )
+    if (!hasOauthAccountEmail) {
+      console.log('📦 Adding oauth_account_email column to providers table...')
+      sqlite.exec('ALTER TABLE providers ADD COLUMN oauth_account_email TEXT')
+      console.log('✅ Added oauth_account_email column')
+    }
   } catch (error) {
     console.error('❌ Schema migration failed:', error)
   }

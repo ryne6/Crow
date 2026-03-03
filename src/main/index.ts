@@ -23,6 +23,8 @@ import { MemoryService } from './db/services/memoryService'
 import { MemoryFileService } from './services/memoryFileService'
 import { MemoryManager } from './services/memoryManager'
 import { WindowThemeManager } from './services/windowThemeManager'
+import { OpenAIOAuthService } from './services/openAIOAuthService'
+import { ProviderModelSyncService } from './services/providerModelSyncService'
 
 const permissionFileService = new PermissionFileService()
 const themeManager = new WindowThemeManager()
@@ -446,6 +448,42 @@ function registerIpcHandlers() {
     return await ProviderService.toggleEnabled(id)
   })
 
+  ipcMain.handle('db:providers:resolveCredentials', async (_, { id }) => {
+    return await OpenAIOAuthService.resolveProviderCredentials(id)
+  })
+
+  ipcMain.handle('db:providers:oauthImportOpenClaw', async (_, { id }) => {
+    return await OpenAIOAuthService.importFromOpenClaw(id)
+  })
+
+  ipcMain.handle('db:providers:oauthStartLogin', async (_, { id }) => {
+    return await OpenAIOAuthService.startLogin(id)
+  })
+
+  ipcMain.handle('db:providers:oauthGetLoginSession', async (_, { sessionId }) => {
+    return await OpenAIOAuthService.pollLoginSession(sessionId)
+  })
+
+  ipcMain.handle('db:providers:oauthCancelLogin', async (_, { sessionId }) => {
+    return await OpenAIOAuthService.cancelLogin(sessionId)
+  })
+
+  ipcMain.handle('db:providers:oauthSetManual', async (_, { id, data }) => {
+    return await OpenAIOAuthService.setManualCredentials(id, data)
+  })
+
+  ipcMain.handle('db:providers:oauthStatus', async (_, { id }) => {
+    return await OpenAIOAuthService.getOAuthStatus(id)
+  })
+
+  ipcMain.handle('db:providers:oauthLogout', async (_, { id }) => {
+    return await OpenAIOAuthService.logout(id)
+  })
+
+  ipcMain.handle('db:providers:fetchModels', async (_, { id, options }) => {
+    return await ProviderModelSyncService.syncProviderModels(id, options)
+  })
+
   // Database - Models
   ipcMain.handle('db:models:getAll', async () => {
     return await ModelService.getAll()
@@ -809,9 +847,9 @@ function registerIpcHandlers() {
       try {
         // C1 fix: Resolve provider credentials from DB — never accept apiKey from renderer
         const provider = await ProviderService.getById(providerId)
-        if (!provider || !provider.apiKey) {
+        if (!provider) {
           console.warn(
-            'memory:extract — provider not found or missing apiKey:',
+            'memory:extract — provider not found:',
             providerId
           )
           return { extracted: 0, saved: 0 }
@@ -822,8 +860,11 @@ function registerIpcHandlers() {
           return { extracted: 0, saved: 0 }
         }
 
+        const resolvedCredentials =
+          await OpenAIOAuthService.resolveProviderCredentials(providerId)
+
         const config = {
-          apiKey: provider.apiKey,
+          apiKey: resolvedCredentials.apiKey,
           model: model.modelId,
           baseURL: provider.baseURL || undefined,
           apiFormat: provider.apiFormat || 'chat-completions',

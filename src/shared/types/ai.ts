@@ -81,6 +81,9 @@ export interface AIStreamChunk {
 }
 
 export interface AIConfig {
+  providerId?: string
+  authType?: 'api_key' | 'oauth'
+  oauthProvider?: string
   apiKey: string
   model: string
   baseURL?: string

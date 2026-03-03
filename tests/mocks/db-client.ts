@@ -11,6 +11,16 @@ import type { Provider, Model, Conversation, Message } from '~main/db/schema'
 const defaultMockProviders: Provider[] = mockProviders.map((p, index) => ({
   ...p,
   id: `provider-${index + 1}`,
+  authType: 'api_key',
+  oauthAutoFetchModels: false,
+  modelSyncOnlyCreate: false,
+  modelSyncEnableNewModels: true,
+  modelSyncNameFilter: null,
+  oauthProvider: null,
+  oauthAccessToken: null,
+  oauthRefreshToken: null,
+  oauthExpiresAt: null,
+  oauthAccountEmail: null,
   createdAt: new Date()
 }))
 
@@ -88,10 +98,126 @@ export function createMockDbClient(options?: {
   return {
     providers: {
       getAll: vi.fn(async () => providers),
+      getEnabled: vi.fn(async () => providers.filter(p => p.enabled)),
       getById: vi.fn(async (id: string) => providers.find(p => p.id === id) ?? null),
+      getByName: vi.fn(
+        async (name: string) => providers.find(p => p.name === name) ?? null
+      ),
       create: vi.fn(async (data: any) => ({ ...data, id: 'new-provider-id', createdAt: new Date() })),
       update: vi.fn(async (id: string, data: any) => ({ ...providers.find(p => p.id === id), ...data })),
-      delete: vi.fn(async (id: string) => undefined)
+      delete: vi.fn(async (id: string) => undefined),
+      toggleEnabled: vi.fn(async (id: string) => {
+        const provider = providers.find(p => p.id === id)
+        if (!provider) return null
+        return { ...provider, enabled: !provider.enabled }
+      }),
+      resolveCredentials: vi.fn(async (id: string) => {
+        const provider = providers.find(p => p.id === id)
+        return {
+          apiKey: provider?.apiKey || 'mock-api-key',
+          authType: 'api_key',
+          oauthProvider: null,
+          accountEmail: null,
+          expiresAt: null,
+        }
+      }),
+      oauthImportOpenClaw: vi.fn(async () => ({
+        imported: true,
+        sourcePath: '/mock/openclaw/oauth.json',
+        profileId: 'openai-codex:default',
+        oauthProvider: 'openai-codex',
+        accountEmail: null,
+        expiresAt: null,
+      })),
+      oauthStartLogin: vi.fn(async () => ({
+        sessionId: 'oauth-session-1',
+        authUrl: 'https://auth.openai.com/oauth/authorize?mock=1',
+        redirectUri: 'http://127.0.0.1:1455/oauth/callback',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      })),
+      oauthGetLoginSession: vi.fn(async () => ({
+        session: {
+          sessionId: 'oauth-session-1',
+          providerId: 'provider-1',
+          status: 'opened',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          authUrl: 'https://auth.openai.com/oauth/authorize?mock=1',
+          redirectUri: 'http://127.0.0.1:1455/oauth/callback',
+          state: 'mock-state',
+          codeVerifier: 'mock-code-verifier',
+          codeChallenge: 'mock-code-challenge',
+          authorizationCode: null,
+          error: null,
+        },
+        oauthStatus: {
+          authType: 'api_key',
+          connected: false,
+          hasAccessToken: false,
+          hasRefreshToken: false,
+          oauthProvider: null,
+          accountEmail: null,
+          expiresAt: null,
+          isExpired: false,
+        },
+      })),
+      oauthCancelLogin: vi.fn(async () => ({
+        sessionId: 'oauth-session-1',
+        providerId: 'provider-1',
+        status: 'cancelled',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        authUrl: 'https://auth.openai.com/oauth/authorize?mock=1',
+        redirectUri: 'http://127.0.0.1:1455/oauth/callback',
+        state: 'mock-state',
+        codeVerifier: 'mock-code-verifier',
+        codeChallenge: 'mock-code-challenge',
+        authorizationCode: null,
+        error: 'OAuth login cancelled by user',
+      })),
+      oauthSetManual: vi.fn(async () => ({
+        authType: 'oauth',
+        connected: true,
+        hasAccessToken: true,
+        hasRefreshToken: false,
+        oauthProvider: 'openai-codex',
+        accountEmail: null,
+        expiresAt: null,
+        isExpired: false,
+      })),
+      oauthStatus: vi.fn(async () => ({
+        authType: 'api_key',
+        connected: false,
+        hasAccessToken: false,
+        hasRefreshToken: false,
+        oauthProvider: null,
+        accountEmail: null,
+        expiresAt: null,
+        isExpired: false,
+      })),
+      oauthLogout: vi.fn(async () => ({
+        authType: 'api_key',
+        connected: false,
+        hasAccessToken: false,
+        hasRefreshToken: false,
+        oauthProvider: null,
+        accountEmail: null,
+        expiresAt: null,
+        isExpired: false,
+      })),
+      fetchModels: vi.fn(async (id: string, _options?: any) => ({
+        providerId: id,
+        providerType: 'openai',
+        dryRun: false,
+        discovered: 2,
+        filteredOut: 0,
+        created: 2,
+        updated: 0,
+        unchanged: 0,
+        toCreate: ['gpt-4o', 'gpt-4.1'],
+        toUpdate: [],
+        models: ['gpt-4o', 'gpt-4.1'],
+      })),
     },
     models: {
       getAll: vi.fn(async () => models),

@@ -23,6 +23,16 @@ export function createTestDatabase() {
       api_key TEXT NOT NULL,
       base_url TEXT,
       api_format TEXT DEFAULT 'chat-completions',
+      auth_type TEXT NOT NULL DEFAULT 'api_key',
+      oauth_auto_fetch_models INTEGER NOT NULL DEFAULT 0,
+      model_sync_only_create INTEGER NOT NULL DEFAULT 0,
+      model_sync_enable_new_models INTEGER NOT NULL DEFAULT 1,
+      model_sync_name_filter TEXT,
+      oauth_provider TEXT,
+      oauth_access_token TEXT,
+      oauth_refresh_token TEXT,
+      oauth_expires_at INTEGER,
+      oauth_account_email TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );

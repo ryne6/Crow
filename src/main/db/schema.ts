@@ -64,6 +64,27 @@ export const providers = sqliteTable('providers', {
   apiKey: text('api_key').notNull(), // Will be encrypted
   baseURL: text('base_url'),
   apiFormat: text('api_format').default('chat-completions'), // API endpoint format
+  authType: text('auth_type')
+    .$type<'api_key' | 'oauth'>()
+    .notNull()
+    .default('api_key'),
+  oauthAutoFetchModels: integer('oauth_auto_fetch_models', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  modelSyncOnlyCreate: integer('model_sync_only_create', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  modelSyncEnableNewModels: integer('model_sync_enable_new_models', {
+    mode: 'boolean',
+  })
+    .notNull()
+    .default(true),
+  modelSyncNameFilter: text('model_sync_name_filter'),
+  oauthProvider: text('oauth_provider'),
+  oauthAccessToken: text('oauth_access_token'), // Will be encrypted
+  oauthRefreshToken: text('oauth_refresh_token'), // Will be encrypted
+  oauthExpiresAt: integer('oauth_expires_at', { mode: 'timestamp' }),
+  oauthAccountEmail: text('oauth_account_email'),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()

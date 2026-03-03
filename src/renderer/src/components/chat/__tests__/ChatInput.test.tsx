@@ -17,7 +17,13 @@ import { ChatInput } from '../ChatInput'
  */
 
 // Use vi.hoisted to ensure mocks are set up before imports
-const { mockChatStore, mockConversationStore, mockSettingsStore, mockNotify } =
+const {
+  mockChatStore,
+  mockConversationStore,
+  mockSettingsStore,
+  mockNotify,
+  mockDbClient,
+} =
   vi.hoisted(() => {
     // Create mock stores directly
     const chatStoreState = {
@@ -140,6 +146,17 @@ const { mockChatStore, mockConversationStore, mockSettingsStore, mockNotify } =
         success: vi.fn(),
         info: vi.fn(),
       },
+      mockDbClient: {
+        providers: {
+          resolveCredentials: vi.fn(async () => ({
+            apiKey: 'resolved-api-key',
+            authType: 'api_key',
+            oauthProvider: null,
+            accountEmail: null,
+            expiresAt: null,
+          })),
+        },
+      },
     }
   })
 
@@ -173,17 +190,29 @@ vi.mock('../ToolsSkillsPanel', () => ({
 }))
 
 vi.mock('../SkillMention', () => ({
-  useSkillMention: () => ({
-    handleInputChange: (v: string) => v,
+  useSkillMention: ({ onInputChange }: { onInputChange: (v: string) => void }) => ({
+    handleInputChange: (v: string) => onInputChange(v),
     handleKeyDown: () => false,
     mentionMenu: null,
     isOpen: false,
   }),
 }))
 
+vi.mock('../SlashCommand', () => ({
+  useSlashCommand: ({ onInputChange }: { onInputChange: (v: string) => void }) => ({
+    handleInputChange: (v: string) => onInputChange(v),
+    handleKeyDown: () => false,
+    slashMenu: null,
+  }),
+}))
+
 // Mock notify utility
 vi.mock('~/utils/notify', () => ({
   notify: mockNotify,
+}))
+
+vi.mock('~/services/dbClient', () => ({
+  dbClient: mockDbClient,
 }))
 
 describe('ChatInput', () => {
@@ -214,7 +243,9 @@ describe('ChatInput', () => {
 
       const textarea = screen.getByLabelText('Message input')
       expect(textarea).toBeInTheDocument()
-      expect(screen.getByPlaceholderText('从任何想法开始…')).toBeInTheDocument()
+      expect(
+        screen.getByPlaceholderText(/从任何想法开始/)
+      ).toBeInTheDocument()
     })
 
     it('should render send button', () => {
@@ -405,7 +436,7 @@ describe('ChatInput', () => {
 
       await waitFor(() => {
         expect(mockNotify.error).toHaveBeenCalledWith(
-          'Please configure API key for Test Provider in Settings'
+          'Please configure auth for Test Provider in Settings'
         )
       })
     })
@@ -573,7 +604,7 @@ describe('ChatInput', () => {
           'Test message',
           'openai',
           expect.objectContaining({
-            apiKey: 'test-api-key',
+            apiKey: 'resolved-api-key',
             model: 'gpt-4',
             temperature: 1,
           }),

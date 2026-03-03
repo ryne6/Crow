@@ -63,6 +63,44 @@ async function triggerMemoryExtraction(
 /** Export for use by conversationStore on conversation switch */
 export { triggerMemoryExtraction }
 
+function hasConfiguredProviderCredentials(provider: {
+  type: string
+  apiKey?: string
+  authType?: 'api_key' | 'oauth'
+}): boolean {
+  if (provider.type === 'openai' && provider.authType === 'oauth') {
+    return true
+  }
+  return Boolean(provider.apiKey && provider.apiKey.trim().length > 0)
+}
+
+async function buildAIConfig(
+  provider: {
+    id: string
+    type: string
+    baseURL?: string | null
+    apiFormat?: string | null
+  },
+  model: { modelId: string },
+  settingsState: { temperature: number; thinkingEnabled: boolean }
+): Promise<AIConfig> {
+  const resolvedCredentials = await dbClient.providers.resolveCredentials(
+    provider.id
+  )
+  return {
+    providerId: provider.id,
+    authType: resolvedCredentials.authType,
+    oauthProvider: resolvedCredentials.oauthProvider || undefined,
+    apiKey: resolvedCredentials.apiKey,
+    model: model.modelId,
+    baseURL: provider.baseURL || undefined,
+    apiFormat: provider.apiFormat || 'chat-completions',
+    temperature: settingsState.temperature,
+    maxTokens: 4096,
+    thinkingEnabled: settingsState.thinkingEnabled,
+  }
+}
+
 // 上下文压缩常量
 const COMPRESSION_THRESHOLD = 0.8
 const KEEP_RECENT = 6
@@ -320,22 +358,30 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const settings = useSettingsStore.getState()
     const provider = settings.getCurrentProvider()
     const model = settings.getCurrentModel()
-    if (!provider || !model || !provider.apiKey) return
+    if (!provider || !model || !hasConfiguredProviderCredentials(provider)) {
+      return
+    }
 
     const convId = convStore.currentConversationId
     if (!convId) return
 
-    const aiConfig: AIConfig = {
-      apiKey: provider.apiKey,
-      model: model.modelId,
-      baseURL: provider.baseURL || undefined,
-      apiFormat: provider.apiFormat || 'chat-completions',
-      temperature: settings.temperature,
-      maxTokens: 4096,
-      thinkingEnabled: settings.thinkingEnabled,
-    }
-
-    get().sendMessage(convId, item.content, provider.type, aiConfig, item.attachments)
+    void (async () => {
+      try {
+        const aiConfig = await buildAIConfig(provider, model, settings)
+        await get().sendMessage(
+          convId,
+          item.content,
+          provider.type,
+          aiConfig,
+          item.attachments
+        )
+      } catch (error) {
+        console.error('Failed to send buffered message:', error)
+        set({
+          error: error instanceof Error ? error.message : 'Failed to resolve credentials',
+        })
+      }
+    })()
   },
 
   abortMessage: () => {
@@ -911,8 +957,8 @@ Current workspace: ${workspacePath || 'Not set'}`
       return
     }
 
-    if (!provider.apiKey) {
-      set({ error: 'Provider API key missing' })
+    if (!hasConfiguredProviderCredentials(provider)) {
+      set({ error: 'Provider auth missing' })
       return
     }
 
@@ -962,15 +1008,7 @@ Current workspace: ${workspacePath || 'Not set'}`
         break
     }
 
-    const aiConfig: AIConfig = {
-      apiKey: provider.apiKey,
-      model: model.modelId,
-      baseURL: provider.baseURL || undefined,
-      apiFormat: provider.apiFormat || 'chat-completions',
-      temperature: settingsState.temperature,
-      maxTokens: 4096,
-      thinkingEnabled: settingsState.thinkingEnabled,
-    }
+    const aiConfig = await buildAIConfig(provider, model, settingsState)
 
     const message = `[Tool Approved] The user approved the "${toolName}" tool. Please proceed with the operation.`
 
@@ -993,8 +1031,8 @@ Current workspace: ${workspacePath || 'Not set'}`
       set({ error: 'No provider or model selected' })
       return
     }
-    if (!provider.apiKey) {
-      set({ error: 'Provider API key missing' })
+    if (!hasConfiguredProviderCredentials(provider)) {
+      set({ error: 'Provider auth missing' })
       return
     }
 
@@ -1002,15 +1040,7 @@ Current workspace: ${workspacePath || 'Not set'}`
       ? `[Tool Denied] The user denied the "${toolName}" tool call (ID: ${toolCallId}). Reason: ${reason}. Please adjust your approach.`
       : `[Tool Denied] The user denied the "${toolName}" tool call (ID: ${toolCallId}). Please try a different approach or ask the user for guidance.`
 
-    const aiConfig: AIConfig = {
-      apiKey: provider.apiKey,
-      model: model.modelId,
-      baseURL: provider.baseURL || undefined,
-      apiFormat: provider.apiFormat || 'chat-completions',
-      temperature: settingsState.temperature,
-      maxTokens: 4096,
-      thinkingEnabled: settingsState.thinkingEnabled,
-    }
+    const aiConfig = await buildAIConfig(provider, model, settingsState)
 
     // 发送 deny 消息作为用户消息，触发 AI 继续对话
     await get().sendMessage(

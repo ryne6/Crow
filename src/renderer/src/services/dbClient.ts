@@ -8,7 +8,103 @@ export interface ProviderRecord {
   apiKey: string
   baseURL: string | null
   apiFormat?: string | null
+  authType?: 'api_key' | 'oauth'
+  oauthAutoFetchModels?: boolean
+  modelSyncOnlyCreate?: boolean
+  modelSyncEnableNewModels?: boolean
+  modelSyncNameFilter?: string | null
+  oauthProvider?: string | null
+  oauthAccessToken?: string | null
+  oauthRefreshToken?: string | null
+  oauthExpiresAt?: string | Date | null
+  oauthAccountEmail?: string | null
   enabled: boolean
+}
+
+export interface ProviderResolvedCredentials {
+  apiKey: string
+  authType: 'api_key' | 'oauth'
+  oauthProvider: string | null
+  accountEmail: string | null
+  expiresAt: string | null
+}
+
+export interface ProviderOAuthStatus {
+  authType: 'api_key' | 'oauth'
+  connected: boolean
+  hasAccessToken: boolean
+  hasRefreshToken: boolean
+  oauthProvider: string | null
+  accountEmail: string | null
+  expiresAt: string | null
+  isExpired: boolean
+}
+
+export interface ProviderModelSyncResult {
+  providerId: string
+  providerType: string
+  dryRun: boolean
+  discovered: number
+  filteredOut: number
+  created: number
+  updated: number
+  unchanged: number
+  toCreate: string[]
+  toUpdate: string[]
+  models: string[]
+}
+
+export interface ProviderModelSyncOptions {
+  onlyCreateNew?: boolean
+  enableNewModels?: boolean
+  nameFilter?: string | null
+  dryRun?: boolean
+}
+
+export interface OpenClawOAuthImportResult {
+  imported: boolean
+  sourcePath: string
+  profileId: string | null
+  oauthProvider: string
+  accountEmail: string | null
+  expiresAt: string | null
+}
+
+export type ProviderOAuthLoginSessionState =
+  | 'pending'
+  | 'opened'
+  | 'code_received'
+  | 'exchanging'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'timeout'
+
+export interface ProviderOAuthLoginStartResult {
+  sessionId: string
+  authUrl: string
+  redirectUri: string
+  expiresAt: string
+}
+
+export interface ProviderOAuthLoginSession {
+  sessionId: string
+  providerId: string
+  status: ProviderOAuthLoginSessionState
+  createdAt: string
+  expiresAt: string
+  authUrl: string
+  redirectUri: string
+  state: string
+  codeVerifier: string
+  codeChallenge: string
+  authorizationCode: string | null
+  error: string | null
+}
+
+export interface ProviderOAuthLoginPollResult {
+  session: ProviderOAuthLoginSession | null
+  oauthStatus: ProviderOAuthStatus | null
 }
 
 export interface ModelRecord {
@@ -148,6 +244,82 @@ export const dbClient = {
       return await window.api.ipc.invoke<ProviderRecord | null>(
         'db:providers:toggleEnabled',
         { id }
+      )
+    },
+    resolveCredentials: async (
+      id: string
+    ): Promise<ProviderResolvedCredentials> => {
+      return await window.api.ipc.invoke<ProviderResolvedCredentials>(
+        'db:providers:resolveCredentials',
+        { id }
+      )
+    },
+    oauthImportOpenClaw: async (
+      id: string
+    ): Promise<OpenClawOAuthImportResult> => {
+      return await window.api.ipc.invoke<OpenClawOAuthImportResult>(
+        'db:providers:oauthImportOpenClaw',
+        { id }
+      )
+    },
+    oauthStartLogin: async (
+      id: string
+    ): Promise<ProviderOAuthLoginStartResult> => {
+      return await window.api.ipc.invoke<ProviderOAuthLoginStartResult>(
+        'db:providers:oauthStartLogin',
+        { id }
+      )
+    },
+    oauthGetLoginSession: async (
+      sessionId: string
+    ): Promise<ProviderOAuthLoginPollResult> => {
+      return await window.api.ipc.invoke<ProviderOAuthLoginPollResult>(
+        'db:providers:oauthGetLoginSession',
+        { sessionId }
+      )
+    },
+    oauthCancelLogin: async (
+      sessionId: string
+    ): Promise<ProviderOAuthLoginSession | null> => {
+      return await window.api.ipc.invoke<ProviderOAuthLoginSession | null>(
+        'db:providers:oauthCancelLogin',
+        { sessionId }
+      )
+    },
+    oauthSetManual: async (
+      id: string,
+      data: {
+        accessToken: string
+        refreshToken?: string | null
+        expiresAt?: string | null
+        accountEmail?: string | null
+        oauthProvider?: string | null
+      }
+    ): Promise<ProviderOAuthStatus> => {
+      return await window.api.ipc.invoke<ProviderOAuthStatus>(
+        'db:providers:oauthSetManual',
+        { id, data }
+      )
+    },
+    oauthStatus: async (id: string): Promise<ProviderOAuthStatus> => {
+      return await window.api.ipc.invoke<ProviderOAuthStatus>(
+        'db:providers:oauthStatus',
+        { id }
+      )
+    },
+    oauthLogout: async (id: string): Promise<ProviderOAuthStatus> => {
+      return await window.api.ipc.invoke<ProviderOAuthStatus>(
+        'db:providers:oauthLogout',
+        { id }
+      )
+    },
+    fetchModels: async (
+      id: string,
+      options?: ProviderModelSyncOptions
+    ): Promise<ProviderModelSyncResult> => {
+      return await window.api.ipc.invoke<ProviderModelSyncResult>(
+        'db:providers:fetchModels',
+        { id, options }
       )
     },
   },

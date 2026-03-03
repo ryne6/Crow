@@ -19,6 +19,18 @@ import { ModelSelector } from './ModelSelector'
 import { ContextIndicator } from './ContextIndicator'
 import type { AIConfig } from '~shared/types/ai'
 import type { PendingAttachment } from '~shared/types/attachment'
+import { dbClient } from '~/services/dbClient'
+
+function hasConfiguredProviderCredentials(provider: {
+  type: string
+  apiKey?: string
+  authType?: 'api_key' | 'oauth'
+}): boolean {
+  if (provider.type === 'openai' && provider.authType === 'oauth') {
+    return true
+  }
+  return Boolean(provider.apiKey && provider.apiKey.trim().length > 0)
+}
 
 export function ChatInput() {
   const [input, setInput] = useState('')
@@ -219,16 +231,27 @@ export function ChatInput() {
 
       const provider = getCurrentProvider()
       const model = getCurrentModel()
-      if (!provider || !model || !provider.apiKey) {
+      if (!provider || !model) {
         notify.error('请先配置 AI 供应商')
+        return true
+      }
+      if (!hasConfiguredProviderCredentials(provider)) {
+        notify.error(`请先配置 ${provider.name} 的鉴权信息`)
         return true
       }
 
       notify.info('正在压缩对话上下文...')
 
       try {
+        const resolvedCredentials = await dbClient.providers.resolveCredentials(
+          provider.id
+        )
+
         const aiConfig: AIConfig = {
-          apiKey: provider.apiKey,
+          providerId: provider.id,
+          authType: resolvedCredentials.authType,
+          oauthProvider: resolvedCredentials.oauthProvider || undefined,
+          apiKey: resolvedCredentials.apiKey,
           model: model.modelId,
           baseURL: provider.baseURL || undefined,
           apiFormat: provider.apiFormat || 'chat-completions',
@@ -299,8 +322,8 @@ export function ChatInput() {
       return
     }
 
-    if (!provider.apiKey) {
-      notify.error(`Please configure API key for ${provider.name} in Settings`)
+    if (!hasConfiguredProviderCredentials(provider)) {
+      notify.error(`Please configure auth for ${provider.name} in Settings`)
       return
     }
 
@@ -322,9 +345,16 @@ export function ChatInput() {
     if (await handleCompactCommand(message)) return
 
     try {
+      const resolvedCredentials = await dbClient.providers.resolveCredentials(
+        provider.id
+      )
+
       // Construct AI config from database provider/model
       const aiConfig: AIConfig = {
-        apiKey: provider.apiKey,
+        providerId: provider.id,
+        authType: resolvedCredentials.authType,
+        oauthProvider: resolvedCredentials.oauthProvider || undefined,
+        apiKey: resolvedCredentials.apiKey,
         model: model.modelId,
         baseURL: provider.baseURL || undefined,
         apiFormat: provider.apiFormat || 'chat-completions',

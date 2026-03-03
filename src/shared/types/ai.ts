@@ -100,6 +100,7 @@ export interface AIRequestOptions {
   // P1 新增
   permissionRules?: PermissionRule[]
   sessionApprovedTools?: string[] // 序列化为数组传输
+  webSearchEngine?: 'google' | 'bing'
 }
 
 export interface AIProvider {

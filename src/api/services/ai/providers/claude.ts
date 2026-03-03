@@ -288,6 +288,7 @@ export class ClaudeProvider extends BaseAIProvider {
             ? new Set(options.sessionApprovedTools)
             : undefined,
           permissionRules: options?.permissionRules,
+          webSearchEngine: options?.webSearchEngine,
         })
         toolResults.push({
           type: 'tool_result',
@@ -417,6 +418,7 @@ export class ClaudeProvider extends BaseAIProvider {
               ? new Set(options.sessionApprovedTools)
               : undefined,
             permissionRules: options?.permissionRules,
+            webSearchEngine: options?.webSearchEngine,
           }
         )
         toolResults.push({

@@ -88,6 +88,7 @@ vi.mock('../settingsStore', () => ({
       setToolAllowAll: mockSetToolAllowAll,
       temperature: 1,
       thinkingEnabled: false,
+      webSearchEngine: 'google' as const,
     }),
   },
 }))
@@ -194,7 +195,10 @@ describe('ChatStore', () => {
         mockConfig,
         expect.any(Function),
         expect.any(AbortSignal),
-        expect.objectContaining({ toolPermissions: { allowAll: false } })
+        expect.objectContaining({
+          toolPermissions: { allowAll: false },
+          webSearchEngine: 'google',
+        })
       )
     })
 

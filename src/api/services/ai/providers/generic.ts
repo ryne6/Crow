@@ -208,6 +208,7 @@ export class GenericProvider extends BaseAIProvider {
             ? new Set(options.sessionApprovedTools)
             : undefined,
           permissionRules: options?.permissionRules,
+          webSearchEngine: options?.webSearchEngine,
         })
 
         onChunk({
@@ -292,6 +293,7 @@ export class GenericProvider extends BaseAIProvider {
               ? new Set(options.sessionApprovedTools)
               : undefined,
             permissionRules: options?.permissionRules,
+            webSearchEngine: options?.webSearchEngine,
           }
         )
         conversationMessages.push({

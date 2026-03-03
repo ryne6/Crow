@@ -223,6 +223,7 @@ export class OpenAIProvider extends BaseAIProvider {
             ? new Set(options.sessionApprovedTools)
             : undefined,
           permissionRules: options?.permissionRules,
+          webSearchEngine: options?.webSearchEngine,
         })
 
         conversationMessages.push({
@@ -316,6 +317,7 @@ export class OpenAIProvider extends BaseAIProvider {
             ? new Set(options.sessionApprovedTools)
             : undefined,
           permissionRules: options?.permissionRules,
+          webSearchEngine: options?.webSearchEngine,
         })
 
         conversationMessages.push({

@@ -269,6 +269,30 @@ describe('ToolExecutor', () => {
       expect(result).toContain('Snippet')
     })
 
+    it('should pass engine when WebSearch input specifies it', async () => {
+      vi.mocked(axios.post).mockResolvedValue({
+        data: {
+          results: [{ title: 'Result', url: 'https://example.com' }],
+        },
+      })
+
+      await executor.execute('WebSearch', {
+        query: 'test',
+        engine: 'bing',
+      })
+
+      expect(axios.post).toHaveBeenCalledWith(
+        'http://localhost:3001/ipc/web:search',
+        {
+          query: 'test',
+          limit: undefined,
+          recencyDays: undefined,
+          domains: undefined,
+          engine: 'bing',
+        }
+      )
+    })
+
     it('should return permission request for unknown tool (classified as moderate)', async () => {
       const result = await executor.execute('unknown_tool', {})
       // Unknown tools are classified as 'moderate' by the permission engine

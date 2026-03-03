@@ -35,6 +35,7 @@ interface ChatRequest {
   // P1 新增
   permissionRules?: PermissionRule[]
   sessionApprovedTools?: string[]
+  webSearchEngine?: AIRequestOptions['webSearchEngine']
 }
 
 interface ValidateRequest {
@@ -54,6 +55,7 @@ app.post('/chat/stream', async c => {
       allowOnceTools,
       permissionRules,
       sessionApprovedTools,
+      webSearchEngine,
     } = body
 
     // Validate required fields
@@ -79,6 +81,7 @@ app.post('/chat/stream', async c => {
             allowOnceTools,
             permissionRules,
             sessionApprovedTools,
+            webSearchEngine,
           }
         )
       } catch (error) {
@@ -106,6 +109,7 @@ app.post('/chat', async c => {
       allowOnceTools,
       permissionRules,
       sessionApprovedTools,
+      webSearchEngine,
     } = body
 
     // Validate required fields
@@ -127,6 +131,7 @@ app.post('/chat', async c => {
         allowOnceTools,
         permissionRules,
         sessionApprovedTools,
+        webSearchEngine,
       }
     )
 

@@ -25,6 +25,7 @@ import { MemoryManager } from './services/memoryManager'
 import { WindowThemeManager } from './services/windowThemeManager'
 import { OpenAIOAuthService } from './services/openAIOAuthService'
 import { ProviderModelSyncService } from './services/providerModelSyncService'
+import { WebBrowserService } from './services/webBrowserService'
 
 const permissionFileService = new PermissionFileService()
 const themeManager = new WindowThemeManager()
@@ -209,6 +210,41 @@ function registerIpcHandlers() {
   // Command execution
   ipcMain.handle('exec:command', async (_, { command, cwd }) => {
     return await fsService.executeCommand(command, cwd)
+  })
+
+  // Web
+  ipcMain.handle(
+    'web:search',
+    async (_, { query, engine, limit, recencyDays, domains }) => {
+      return {
+        results: await WebBrowserService.search(query, {
+          engine,
+          limit,
+          recencyDays,
+          domains,
+        }),
+      }
+    }
+  )
+
+  ipcMain.handle('web:fetch', async (_, { url, maxLength }) => {
+    return {
+      content: await WebBrowserService.fetch(url, maxLength),
+    }
+  })
+
+  ipcMain.handle('web:openLogin', async (_, { engine }) => {
+    await WebBrowserService.openLoginWindow(engine || 'google')
+  })
+
+  ipcMain.handle('web:sessionStatus', async () => {
+    return {
+      status: await WebBrowserService.getSessionStatus(),
+    }
+  })
+
+  ipcMain.handle('web:clearSession', async () => {
+    await WebBrowserService.clearSession()
   })
 
   // Workspace

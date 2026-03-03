@@ -136,7 +136,8 @@ export interface IpcApi {
       query: string,
       limit?: number,
       recencyDays?: number,
-      domains?: string[]
+      domains?: string[],
+      engine?: 'google' | 'bing'
     ) => Promise<{
       results: { title: string; url: string; snippet?: string }[]
     }>

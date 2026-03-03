@@ -29,6 +29,7 @@ export interface ToolExecutionOptions {
   // P2 预留
   hooks?: HooksConfig
   sandboxMode?: 'read-only' | 'workspace-write' | 'full-access'
+  webSearchEngine?: 'google' | 'bing'
 }
 
 const IPC_BRIDGE_BASE = 'http://localhost:3001'
@@ -205,7 +206,7 @@ export class ToolExecutor {
           )
 
         case 'WebSearch':
-          return await this.webSearch(input)
+          return await this.webSearch(input, options.webSearchEngine)
 
         default:
           throw new Error(`Unknown tool: ${toolName}`)
@@ -364,13 +365,27 @@ export class ToolExecutor {
     }
   }
 
-  private async webSearch(input: Record<string, unknown>): Promise<string> {
+  private getWebSearchEngine(
+    input: Record<string, unknown>,
+    defaultEngine?: 'google' | 'bing'
+  ): 'google' | 'bing' | undefined {
+    const value = this.getOptionalStringValue(input, 'engine')?.toLowerCase()
+    if (value === 'google' || value === 'bing') return value
+    return defaultEngine
+  }
+
+  private async webSearch(
+    input: Record<string, unknown>,
+    defaultEngine?: 'google' | 'bing'
+  ): Promise<string> {
     try {
+      const engine = this.getWebSearchEngine(input, defaultEngine)
       const response = await axios.post(`${IPC_BRIDGE_BASE}/ipc/web:search`, {
         query: input?.query,
         limit: input?.limit,
         recencyDays: input?.recencyDays,
         domains: input?.domains,
+        engine,
       })
       const results = response.data.results || []
       if (results.length === 0) {

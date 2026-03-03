@@ -802,6 +802,7 @@ Current workspace: ${workspacePath || 'Not set'}`
           toolPermissions,
           allowOnceTools:
             mergedAllowOnce.length > 0 ? mergedAllowOnce : undefined,
+          webSearchEngine: settingsState.webSearchEngine,
         }
       )
 

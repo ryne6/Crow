@@ -72,13 +72,15 @@ const api: IpcApi = {
       query: string,
       limit?: number,
       recencyDays?: number,
-      domains?: string[]
+      domains?: string[],
+      engine?: 'google' | 'bing'
     ) =>
       ipcRenderer.invoke('web:search', {
         query,
         limit,
         recencyDays,
         domains,
+        engine,
       }),
     openLogin: (engine: 'google' | 'bing') =>
       ipcRenderer.invoke('web:openLogin', { engine }),

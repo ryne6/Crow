@@ -114,6 +114,7 @@ app.post('/ipc/:channel', async c => {
       case 'web:search':
         result = {
           results: await WebBrowserService.search(body.query, {
+            engine: body.engine,
             limit: body.limit,
             recencyDays: body.recencyDays,
             domains: body.domains,

@@ -188,6 +188,38 @@ describe('Chat Routes', () => {
       )
     })
 
+    it('should pass webSearchEngine into AI request options', async () => {
+      const mockMessages: AIMessage[] = [{ role: 'user', content: 'Search web' }]
+      const mockConfig: AIConfig = {
+        apiKey: 'test-key',
+        model: 'test-model',
+      }
+
+      vi.mocked(AIManager.prototype.sendMessage).mockResolvedValue('done')
+
+      const res = await chatApp.request('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'openai',
+          messages: mockMessages,
+          config: mockConfig,
+          webSearchEngine: 'bing',
+        }),
+      })
+
+      expect(res.status).toBe(200)
+      expect(AIManager.prototype.sendMessage).toHaveBeenCalledWith(
+        'openai',
+        mockMessages,
+        mockConfig,
+        undefined,
+        expect.objectContaining({
+          webSearchEngine: 'bing',
+        })
+      )
+    })
+
     it('should handle AI manager errors', async () => {
       vi.mocked(AIManager.prototype.sendMessage).mockRejectedValue(
         new Error('API key invalid')

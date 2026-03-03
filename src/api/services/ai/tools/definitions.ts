@@ -291,6 +291,11 @@ export const fileSystemTools = [
           items: { type: 'string' },
           description: 'Domain allowlist',
         },
+        engine: {
+          type: 'string',
+          description: 'Search engine (google or bing)',
+          enum: ['google', 'bing'],
+        },
       },
       required: ['query'],
     },

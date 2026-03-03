@@ -201,6 +201,7 @@ export class APIClient {
         allowOnceTools: options?.allowOnceTools,
         permissionRules: options?.permissionRules,
         sessionApprovedTools: options?.sessionApprovedTools,
+        webSearchEngine: options?.webSearchEngine,
       }),
       signal,
     })
@@ -282,6 +283,7 @@ export class APIClient {
         allowOnceTools: options?.allowOnceTools,
         permissionRules: options?.permissionRules,
         sessionApprovedTools: options?.sessionApprovedTools,
+        webSearchEngine: options?.webSearchEngine,
       }),
     })
 

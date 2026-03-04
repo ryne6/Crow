@@ -221,3 +221,93 @@ describe('OpenAIOAuthService resolveProviderCredentials', () => {
     ).rejects.toThrow('Provider API key missing')
   })
 })
+
+describe('OpenAIOAuthService startCodexLogin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    OpenAIOAuthService.clearTestOverrides()
+  })
+
+  it('should login via Codex helper and persist oauth credentials', async () => {
+    const expiresAtMs = Date.now() + 3600_000
+    const openExternalMock = vi.fn(async () => {})
+    const loginOpenAICodexMock = vi.fn(async ({ onAuth }: any) => {
+      await onAuth({
+        url: 'https://auth.openai.com/oauth/authorize?state=codex',
+      })
+      return {
+        provider: 'openai-codex',
+        access: 'codex-access-token',
+        refresh: 'codex-refresh-token',
+        expires: expiresAtMs,
+        email: 'codex@example.com',
+      }
+    })
+
+    providerServiceMock.getById
+      .mockResolvedValueOnce({
+        id: 'provider-codex',
+        type: 'openai',
+        authType: 'oauth',
+        oauthRefreshToken: 'legacy-refresh-token',
+        oauthProvider: null,
+        oauthAccountEmail: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'provider-codex',
+        type: 'openai',
+        authType: 'oauth',
+        oauthAccessToken: 'codex-access-token',
+        oauthRefreshToken: 'codex-refresh-token',
+        oauthProvider: 'openai-codex',
+        oauthAccountEmail: 'codex@example.com',
+        oauthExpiresAt: new Date(expiresAtMs),
+      })
+    providerServiceMock.setOAuthCredentials.mockResolvedValue(undefined)
+
+    OpenAIOAuthService.setTestOverrides({
+      loginOpenAICodexImpl: loginOpenAICodexMock as any,
+      openExternalImpl: openExternalMock,
+    })
+
+    const status = await OpenAIOAuthService.startCodexLogin('provider-codex')
+
+    expect(loginOpenAICodexMock).toHaveBeenCalledOnce()
+    expect(openExternalMock).toHaveBeenCalledWith(
+      'https://auth.openai.com/oauth/authorize?state=codex'
+    )
+    expect(providerServiceMock.setOAuthCredentials).toHaveBeenCalledWith(
+      'provider-codex',
+      expect.objectContaining({
+        oauthAccessToken: 'codex-access-token',
+        oauthRefreshToken: 'codex-refresh-token',
+        oauthProvider: 'openai-codex',
+        oauthAccountEmail: 'codex@example.com',
+      })
+    )
+    expect(status.connected).toBe(true)
+    expect(status.accountEmail).toBe('codex@example.com')
+  })
+
+  it('should reject codex login response without access token', async () => {
+    providerServiceMock.getById.mockResolvedValue({
+      id: 'provider-codex',
+      type: 'openai',
+      authType: 'oauth',
+      oauthRefreshToken: null,
+      oauthProvider: null,
+      oauthAccountEmail: null,
+    })
+
+    OpenAIOAuthService.setTestOverrides({
+      loginOpenAICodexImpl: (async () => ({
+        provider: 'openai-codex',
+      })) as any,
+      openExternalImpl: async () => {},
+    })
+
+    await expect(
+      OpenAIOAuthService.startCodexLogin('provider-codex')
+    ).rejects.toThrow('Codex OAuth response missing access token')
+  })
+})

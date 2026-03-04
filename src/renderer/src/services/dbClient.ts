@@ -263,10 +263,21 @@ export const dbClient = {
       )
     },
     oauthStartLogin: async (
-      id: string
+      id: string,
+      clientId?: string | null
     ): Promise<ProviderOAuthLoginStartResult> => {
+      const payload =
+        clientId === undefined ? { id } : { id, clientId }
       return await window.api.ipc.invoke<ProviderOAuthLoginStartResult>(
         'db:providers:oauthStartLogin',
+        payload
+      )
+    },
+    oauthStartCodexLogin: async (
+      id: string
+    ): Promise<ProviderOAuthStatus> => {
+      return await window.api.ipc.invoke<ProviderOAuthStatus>(
+        'db:providers:oauthStartCodexLogin',
         { id }
       )
     },

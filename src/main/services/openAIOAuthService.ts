@@ -48,6 +48,8 @@ interface OpenAIOAuthServiceTestOverrides {
   fetchImpl?: typeof fetch
   oauthConfig?: OpenAIOAuthRuntimeConfig
   sessionService?: OpenAIOAuthSessionService | OpenAIOAuthSessionLike
+  loginOpenAICodexImpl?: LoginOpenAICodexImpl | null
+  openExternalImpl?: ((url: string) => Promise<void>) | null
 }
 
 type OpenAIOAuthSessionLike = Pick<
@@ -60,6 +62,29 @@ type OpenAIOAuthSessionLike = Pick<
   | 'cancelLogin'
   | 'consumeAuthorizationCode'
 >
+
+interface CodexOAuthPrompt {
+  message: string
+  placeholder?: string
+}
+
+interface CodexOAuthAuthEvent {
+  url: string
+}
+
+interface CodexOAuthCredential {
+  provider?: string
+  access?: string
+  refresh?: string
+  expires?: number | string
+  email?: string
+}
+
+type LoginOpenAICodexImpl = (params: {
+  onAuth: (event: CodexOAuthAuthEvent) => Promise<void>
+  onPrompt: (prompt: CodexOAuthPrompt) => Promise<string>
+  onProgress?: (message: string) => void
+}) => Promise<CodexOAuthCredential | null>
 
 const OPENCLAW_STATE_DIR_CANDIDATES = [
   '.openclaw',
@@ -255,12 +280,18 @@ export class OpenAIOAuthService {
 
   private static oauthConfigOverride: OpenAIOAuthRuntimeConfig | null = null
 
+  private static loginOpenAICodexOverride: LoginOpenAICodexImpl | null = null
+
+  private static openExternalOverride: ((url: string) => Promise<void>) | null =
+    null
+
   private static sessionServiceOverride:
     | OpenAIOAuthSessionLike
     | OpenAIOAuthSessionService
     | null = null
 
   private static defaultSessionService: OpenAIOAuthSessionService | null = null
+  private static defaultSessionServiceConfigKey: string | null = null
 
   private static refreshPromiseByProvider = new Map<string, Promise<string>>()
 
@@ -274,6 +305,12 @@ export class OpenAIOAuthService {
     if (overrides.sessionService) {
       this.sessionServiceOverride = overrides.sessionService
     }
+    if ('loginOpenAICodexImpl' in overrides) {
+      this.loginOpenAICodexOverride = overrides.loginOpenAICodexImpl || null
+    }
+    if ('openExternalImpl' in overrides) {
+      this.openExternalOverride = overrides.openExternalImpl || null
+    }
   }
 
   static clearTestOverrides() {
@@ -281,19 +318,73 @@ export class OpenAIOAuthService {
     this.oauthConfigOverride = null
     this.sessionServiceOverride = null
     this.defaultSessionService = null
+    this.defaultSessionServiceConfigKey = null
     this.refreshPromiseByProvider.clear()
+    this.loginOpenAICodexOverride = null
+    this.openExternalOverride = null
+  }
+
+  private static async openExternal(url: string): Promise<void> {
+    if (this.openExternalOverride) {
+      await this.openExternalOverride(url)
+      return
+    }
+
+    const { shell } = await import('electron')
+    await shell.openExternal(url)
+  }
+
+  private static async getLoginOpenAICodexImpl(): Promise<LoginOpenAICodexImpl> {
+    if (this.loginOpenAICodexOverride) {
+      return this.loginOpenAICodexOverride
+    }
+
+    try {
+      const mod = (await import('@mariozechner/pi-ai')) as {
+        loginOpenAICodex?: unknown
+      }
+      if (typeof mod.loginOpenAICodex !== 'function') {
+        throw new Error('loginOpenAICodex export is missing')
+      }
+      return mod.loginOpenAICodex as LoginOpenAICodexImpl
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `Codex OAuth bridge unavailable. Install @mariozechner/pi-ai and retry. (${message})`
+      )
+    }
   }
 
   private static resolveOAuthConfig(): OpenAIOAuthRuntimeConfig {
     return this.oauthConfigOverride || resolveOpenAIOAuthConfig(process.env)
   }
 
+  private static toOAuthConfigKey(config: OpenAIOAuthRuntimeConfig): string {
+    return JSON.stringify({
+      clientId: config.clientId || '',
+      authorizeEndpoint: config.authorizeEndpoint,
+      tokenEndpoint: config.tokenEndpoint,
+      userinfoEndpoint: config.userinfoEndpoint || '',
+      callbackHost: config.callbackHost,
+      callbackPath: config.callbackPath,
+      callbackPortCandidates: config.callbackPortCandidates,
+      scopes: config.scopes,
+    })
+  }
+
   private static getSessionService(): OpenAIOAuthSessionLike {
     if (this.sessionServiceOverride) {
       return this.sessionServiceOverride
     }
-    if (!this.defaultSessionService) {
-      const oauthConfig = this.resolveOAuthConfig()
+    const oauthConfig = this.resolveOAuthConfig()
+    const nextConfigKey = this.toOAuthConfigKey(oauthConfig)
+    const canReplaceConfig =
+      !this.defaultSessionService || !this.defaultSessionService.hasActiveSessions()
+
+    if (
+      !this.defaultSessionService ||
+      (this.defaultSessionServiceConfigKey !== nextConfigKey && canReplaceConfig)
+    ) {
       this.defaultSessionService = new OpenAIOAuthSessionService({
         config: oauthConfig,
         openExternal: async (url: string) => {
@@ -301,6 +392,7 @@ export class OpenAIOAuthService {
           await shell.openExternal(url)
         },
       })
+      this.defaultSessionServiceConfigKey = nextConfigKey
     }
     return this.defaultSessionService
   }
@@ -355,10 +447,60 @@ export class OpenAIOAuthService {
     return provider
   }
 
-  static async startLogin(providerId: string): Promise<OpenAIOAuthLoginStartResult> {
+  static async startLogin(
+    providerId: string,
+    clientId?: string | null
+  ): Promise<OpenAIOAuthLoginStartResult> {
     await this.ensureOpenAIProvider(providerId)
     const sessionService = this.getSessionService()
-    return await sessionService.startLogin(providerId)
+    return await sessionService.startLogin(providerId, { clientId })
+  }
+
+  static async startCodexLogin(providerId: string): Promise<OpenAIOAuthStatus> {
+    const provider = await this.ensureOpenAIProvider(providerId)
+    const loginOpenAICodex = await this.getLoginOpenAICodexImpl()
+    const fallbackRefreshToken = toStringSafe(provider.oauthRefreshToken)
+    const fallbackProvider = toStringSafe(provider.oauthProvider) || 'openai-codex'
+    const fallbackEmail = toStringSafe(provider.oauthAccountEmail)
+
+    const credential = await loginOpenAICodex({
+      onAuth: async event => {
+        const authUrl = toStringSafe(event?.url)
+        if (!authUrl) {
+          throw new Error('Codex OAuth returned invalid authorization URL')
+        }
+        await this.openExternal(authUrl)
+      },
+      onPrompt: async prompt => {
+        const promptMessage = toStringSafe(prompt?.message) || 'manual input'
+        throw new Error(
+          `Codex OAuth requested ${promptMessage}, but manual prompt flow is not supported in Crow desktop yet.`
+        )
+      },
+    })
+
+    if (!credential) {
+      throw new Error('Codex OAuth login did not return credentials')
+    }
+
+    const accessToken = toStringSafe(credential.access)
+    if (!accessToken) {
+      throw new Error('Codex OAuth response missing access token')
+    }
+    const refreshToken = toStringSafe(credential.refresh) || fallbackRefreshToken
+    const expiresAtMs = normalizeTimestampMs(credential.expires)
+    const oauthProvider = toStringSafe(credential.provider) || fallbackProvider
+    const accountEmail = toStringSafe(credential.email) || fallbackEmail
+
+    await ProviderService.setOAuthCredentials(provider.id, {
+      oauthAccessToken: accessToken,
+      oauthRefreshToken: refreshToken,
+      oauthExpiresAt: expiresAtMs ? new Date(expiresAtMs) : null,
+      oauthAccountEmail: accountEmail,
+      oauthProvider,
+    })
+
+    return await this.getOAuthStatus(provider.id)
   }
 
   static async getLoginSession(sessionId: string): Promise<OpenAIOAuthLoginSession | null> {
@@ -425,6 +567,7 @@ export class OpenAIOAuthService {
     code: string
     codeVerifier: string
     redirectUri: string
+    clientId?: string | null
   }): Promise<{
     accessToken: string
     refreshToken: string | null
@@ -432,15 +575,18 @@ export class OpenAIOAuthService {
     accountEmail: string | null
   }> {
     const oauthConfig = this.resolveOAuthConfig()
-    if (!oauthConfig.clientId) {
-      throw new Error('OPENAI_OAUTH_CLIENT_ID is required for OAuth token exchange')
+    const clientId = params.clientId?.trim() || oauthConfig.clientId || ''
+    if (!clientId) {
+      throw new Error(
+        'OpenAI OAuth client_id is required for token exchange. Set OPENAI_OAUTH_CLIENT_ID or provide a client id in settings.'
+      )
     }
 
     const formData = new URLSearchParams()
     formData.set('grant_type', 'authorization_code')
     formData.set('code', params.code)
     formData.set('redirect_uri', params.redirectUri)
-    formData.set('client_id', oauthConfig.clientId)
+    formData.set('client_id', clientId)
     formData.set('code_verifier', params.codeVerifier)
 
     const response = await this.fetchImpl(oauthConfig.tokenEndpoint, {
@@ -502,6 +648,7 @@ export class OpenAIOAuthService {
         code: authCode.code,
         codeVerifier: authCode.codeVerifier,
         redirectUri: authCode.redirectUri,
+        clientId: authCode.clientId,
       })
 
       const provider = await this.ensureOpenAIProvider(session.providerId)

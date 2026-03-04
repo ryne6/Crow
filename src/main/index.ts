@@ -234,7 +234,7 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('web:openLogin', async (_, { engine }) => {
-    await WebBrowserService.openLoginWindow(engine || 'google')
+    return await WebBrowserService.openLoginWindow(engine || 'google')
   })
 
   ipcMain.handle('web:sessionStatus', async () => {
@@ -492,8 +492,12 @@ function registerIpcHandlers() {
     return await OpenAIOAuthService.importFromOpenClaw(id)
   })
 
-  ipcMain.handle('db:providers:oauthStartLogin', async (_, { id }) => {
-    return await OpenAIOAuthService.startLogin(id)
+  ipcMain.handle('db:providers:oauthStartLogin', async (_, { id, clientId }) => {
+    return await OpenAIOAuthService.startLogin(id, clientId)
+  })
+
+  ipcMain.handle('db:providers:oauthStartCodexLogin', async (_, { id }) => {
+    return await OpenAIOAuthService.startCodexLogin(id)
   })
 
   ipcMain.handle('db:providers:oauthGetLoginSession', async (_, { sessionId }) => {

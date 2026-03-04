@@ -19,6 +19,8 @@ interface ProviderConfigDialogProps {
   onUpdated: () => void
 }
 
+const OPENAI_OAUTH_CLIENT_ID_SETTING_KEY = 'openaiOAuthClientId'
+
 export function ProviderConfigDialog({
   provider,
   open,
@@ -76,6 +78,7 @@ export function ProviderConfigDialog({
     accountEmail: '',
     oauthProvider: 'openai-codex',
   })
+  const [oauthClientId, setOauthClientId] = useState('')
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const clearPollingTimer = () => {
@@ -146,6 +149,14 @@ export function ProviderConfigDialog({
   useEffect(() => {
     if (!open || !provider || provider.type !== 'openai') return
     loadOAuthStatus()
+    void (async () => {
+      try {
+        const value = await dbClient.settings.get(OPENAI_OAUTH_CLIENT_ID_SETTING_KEY)
+        setOauthClientId(typeof value === 'string' ? value : '')
+      } catch (error) {
+        console.error('Failed to load OpenAI OAuth client id setting:', error)
+      }
+    })()
   }, [open, provider?.id])
 
   useEffect(() => {
@@ -153,6 +164,7 @@ export function ProviderConfigDialog({
     clearPollingTimer()
     setOauthLoginSession(null)
     setLastModelSyncResult(null)
+    setOauthClientId('')
   }, [open])
 
   useEffect(() => {
@@ -307,7 +319,15 @@ export function ProviderConfigDialog({
     if (!provider) return
     setIsOAuthActionLoading(true)
     try {
-      const started = await dbClient.providers.oauthStartLogin(provider.id)
+      const normalizedClientId = oauthClientId.trim()
+      await dbClient.settings.set(
+        OPENAI_OAUTH_CLIENT_ID_SETTING_KEY,
+        normalizedClientId || null
+      )
+      const started = await dbClient.providers.oauthStartLogin(
+        provider.id,
+        normalizedClientId || null
+      )
       setOauthLoginSession({
         sessionId: started.sessionId,
         authUrl: started.authUrl,
@@ -324,6 +344,36 @@ export function ProviderConfigDialog({
     } catch (error) {
       console.error('Failed to start OAuth login:', error)
       notify.error(error instanceof Error ? error.message : 'Failed to start OAuth login')
+    } finally {
+      setIsOAuthActionLoading(false)
+    }
+  }
+
+  const handleStartCodexOAuthLogin = async () => {
+    if (!provider) return
+    setIsOAuthActionLoading(true)
+    try {
+      clearPollingTimer()
+      setOauthLoginSession(null)
+      const status = await dbClient.providers.oauthStartCodexLogin(provider.id)
+      setOauthStatus(status)
+      setFormData(prev => ({ ...prev, authType: 'oauth' }))
+      if (formData.oauthAutoFetchModels) {
+        await syncProviderModels('auto')
+      } else {
+        notify.success(
+          status.accountEmail
+            ? `Codex OAuth login succeeded (${status.accountEmail})`
+            : 'Codex OAuth login succeeded'
+        )
+        triggerRefresh()
+        onUpdated()
+      }
+    } catch (error) {
+      console.error('Failed to start Codex OAuth login:', error)
+      notify.error(
+        error instanceof Error ? error.message : 'Failed to start Codex OAuth login'
+      )
     } finally {
       setIsOAuthActionLoading(false)
     }
@@ -462,6 +512,13 @@ export function ProviderConfigDialog({
       await dbClient.providers.update(provider.id, {
         ...updatePayload,
       })
+      if (provider.type === 'openai') {
+        const normalizedClientId = oauthClientId.trim()
+        await dbClient.settings.set(
+          OPENAI_OAUTH_CLIENT_ID_SETTING_KEY,
+          normalizedClientId || null
+        )
+      }
 
       notify.success(`${provider.name} updated successfully`)
       triggerRefresh()
@@ -574,6 +631,20 @@ export function ProviderConfigDialog({
         {provider.type === 'openai' && formData.authType === 'oauth' && (
           <div className="rounded-lg border p-3 space-y-3">
             <div>
+              <div className="text-sm font-medium">OAuth Client ID Override</div>
+              <Input
+                type="text"
+                value={oauthClientId}
+                onChange={e => setOauthClientId(e.target.value)}
+                placeholder="Leave empty to use OPENAI_OAUTH_CLIENT_ID"
+                className="font-mono mt-2"
+              />
+              <div className="text-xs text-muted-foreground mt-1">
+                Optional. If empty, Crow reads `OPENAI_OAUTH_CLIENT_ID` from environment.
+              </div>
+            </div>
+
+            <div>
               <div className="text-sm font-medium">OpenAI OAuth Status</div>
               <div className="text-xs text-muted-foreground mt-1 space-y-1">
                 <div>
@@ -597,6 +668,14 @@ export function ProviderConfigDialog({
             <div className="flex gap-2">
               <Button
                 htmlType="button"
+                onClick={handleStartCodexOAuthLogin}
+                disabled={isOAuthActionLoading}
+              >
+                Sign in with Codex
+              </Button>
+              <Button
+                htmlType="button"
+                variant="outline"
                 onClick={handleStartOAuthLogin}
                 disabled={isOAuthActionLoading}
               >

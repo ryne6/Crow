@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Plus, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { Modal } from '@lobehub/ui'
 import { Button } from '~/components/ui/button'
-import { dbClient } from '~/services/dbClient'
+import { dbClient, type ProviderRecord as Provider } from '~/services/dbClient'
 import { apiClient } from '~/services/apiClient'
 import { notify } from '~/utils/notify'
 import { useSettingsStore } from '~/stores/settingsStore'
 
 interface AddProviderDialogProps {
   onProviderAdded: () => void
+  onConfigureProvider?: (provider: Provider) => void
 }
 
 const PROVIDER_TEMPLATES = [
@@ -43,7 +44,10 @@ const PROVIDER_TEMPLATES = [
   },
 ]
 
-export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
+export function AddProviderDialog({
+  onProviderAdded,
+  onConfigureProvider,
+}: AddProviderDialogProps) {
   const { loadData, triggerRefresh } = useSettingsStore()
   const [open, setOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
@@ -53,6 +57,7 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
     apiKey: '',
     baseURL: '',
     apiFormat: 'chat-completions',
+    authType: 'api_key' as 'api_key' | 'oauth',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isValidating, setIsValidating] = useState(false)
@@ -71,6 +76,7 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
         apiKey: '',
         baseURL: template.baseURL,
         apiFormat: template.apiFormat || 'chat-completions',
+        authType: 'api_key',
       })
       setValidationResult(null)
     }
@@ -118,7 +124,10 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name || !formData.type || !formData.apiKey) {
+    const effectiveAuthType =
+      formData.type === 'openai' ? formData.authType : 'api_key'
+    const requiresApiKey = effectiveAuthType === 'api_key'
+    if (!formData.name || !formData.type || (requiresApiKey && !formData.apiKey)) {
       notify.error('Please fill in all required fields')
       return
     }
@@ -129,9 +138,10 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
       const provider = await dbClient.providers.create({
         name: formData.name,
         type: formData.type,
-        apiKey: formData.apiKey,
+        apiKey: requiresApiKey ? formData.apiKey : '',
         baseURL: formData.baseURL || null,
         apiFormat: formData.apiFormat,
+        authType: effectiveAuthType,
         enabled: true,
       })
 
@@ -160,9 +170,13 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
         apiKey: '',
         baseURL: '',
         apiFormat: 'chat-completions',
+        authType: 'api_key',
       })
       setSelectedTemplate('')
       onProviderAdded()
+      if (effectiveAuthType === 'oauth' && provider.type === 'openai') {
+        onConfigureProvider?.(provider)
+      }
     } catch (error) {
       console.error('Failed to add provider:', error)
       notify.error('Failed to add provider')
@@ -241,6 +255,35 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
                 </p>
               </div>
 
+              {formData.type === 'openai' && (
+                <div>
+                  <label
+                    className="text-sm font-medium mb-2 block"
+                    htmlFor="provider-auth-mode"
+                  >
+                    Auth Mode
+                  </label>
+                  <select
+                    id="provider-auth-mode"
+                    value={formData.authType}
+                    onChange={e =>
+                      setFormData({
+                        ...formData,
+                        authType: e.target.value as 'api_key' | 'oauth',
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                  >
+                    <option value="api_key">API Key</option>
+                    <option value="oauth">OAuth (ChatGPT account)</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    OAuth mode keeps API Key flow unchanged and adds ChatGPT account login
+                  </p>
+                </div>
+              )}
+
+            {(formData.type !== 'openai' || formData.authType === 'api_key') && (
               <div>
                 <label className="text-sm font-medium mb-2 block">
                   API Key <span className="text-destructive">*</span>
@@ -295,6 +338,16 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
                   </p>
                 )}
               </div>
+            )}
+
+            {formData.type === 'openai' && formData.authType === 'oauth' && (
+              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                After creating this provider, the OAuth configuration dialog will open.
+                Then click <span className="font-medium">Sign in with Codex</span>{' '}
+                (recommended), or use <span className="font-medium">Sign in with ChatGPT</span>{' '}
+                when you need a custom OAuth client ID.
+              </div>
+            )}
 
               <div>
                 <label className="text-sm font-medium mb-2 block">
@@ -347,7 +400,11 @@ export function AddProviderDialog({ onProviderAdded }: AddProviderDialogProps) {
                   Cancel
                 </Button>
                 <Button htmlType="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Adding...' : 'Add Provider'}
+                  {isSubmitting
+                    ? 'Adding...'
+                    : formData.type === 'openai' && formData.authType === 'oauth'
+                      ? 'Add & Configure OAuth'
+                      : 'Add Provider'}
                 </Button>
               </div>
             </>

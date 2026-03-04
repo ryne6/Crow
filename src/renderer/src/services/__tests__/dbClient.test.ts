@@ -59,8 +59,13 @@ vi.mock('../dbClient', () => {
           mockInvoke('db:providers:resolveCredentials', { id }),
         oauthImportOpenClaw: async (id: string) =>
           mockInvoke('db:providers:oauthImportOpenClaw', { id }),
-        oauthStartLogin: async (id: string) =>
-          mockInvoke('db:providers:oauthStartLogin', { id }),
+        oauthStartLogin: async (id: string, clientId?: string | null) =>
+          mockInvoke('db:providers:oauthStartLogin', {
+            id,
+            ...(clientId === undefined ? {} : { clientId }),
+          }),
+        oauthStartCodexLogin: async (id: string) =>
+          mockInvoke('db:providers:oauthStartCodexLogin', { id }),
         oauthGetLoginSession: async (sessionId: string) =>
           mockInvoke('db:providers:oauthGetLoginSession', { sessionId }),
         oauthCancelLogin: async (sessionId: string) =>
@@ -283,6 +288,26 @@ describe('dbClient', () => {
       expect(mockInvoke).toHaveBeenCalledWith('db:providers:oauthStartLogin', {
         id: 'p-1',
       })
+    })
+
+    it('oauthStartLogin should pass clientId override when provided', async () => {
+      mockInvoke.mockResolvedValue({})
+      await dbClient.providers.oauthStartLogin('p-1', 'client-override')
+      expect(mockInvoke).toHaveBeenCalledWith('db:providers:oauthStartLogin', {
+        id: 'p-1',
+        clientId: 'client-override',
+      })
+    })
+
+    it('oauthStartCodexLogin should invoke with id', async () => {
+      mockInvoke.mockResolvedValue({})
+      await dbClient.providers.oauthStartCodexLogin('p-1')
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'db:providers:oauthStartCodexLogin',
+        {
+          id: 'p-1',
+        }
+      )
     })
 
     it('oauthGetLoginSession should invoke with sessionId', async () => {

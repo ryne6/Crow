@@ -20,6 +20,16 @@ const mockDbClient = vi.hoisted(() => ({
       isExpired: false,
     })),
     oauthImportOpenClaw: vi.fn(async () => ({})),
+    oauthStartCodexLogin: vi.fn(async () => ({
+      authType: 'oauth',
+      connected: true,
+      hasAccessToken: true,
+      hasRefreshToken: true,
+      oauthProvider: 'openai-codex',
+      accountEmail: 'codex@example.com',
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      isExpired: false,
+    })),
     oauthStartLogin: vi.fn(async () => ({
       sessionId: 'oauth-session-1',
       authUrl: 'https://auth.openai.com/oauth/authorize?mock=1',
@@ -68,6 +78,10 @@ const mockDbClient = vi.hoisted(() => ({
       toUpdate: [],
       models: ['gpt-4o', 'gpt-4.1'],
     })),
+  },
+  settings: {
+    get: vi.fn(async () => null),
+    set: vi.fn(async () => null),
   },
 }))
 
@@ -251,7 +265,10 @@ describe('ProviderConfigDialog', () => {
     await user.click(signInButton)
 
     await waitFor(() => {
-      expect(mockDbClient.providers.oauthStartLogin).toHaveBeenCalledWith('p1')
+      expect(mockDbClient.providers.oauthStartLogin).toHaveBeenCalledWith(
+        'p1',
+        null
+      )
     })
 
     await waitFor(() => {
@@ -262,6 +279,71 @@ describe('ProviderConfigDialog', () => {
       expect(mockNotify.success).toHaveBeenCalledWith('OAuth login succeeded')
     })
     expect(onUpdated).toHaveBeenCalled()
+  })
+
+  it('should start Codex OAuth login flow', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    const onUpdated = vi.fn()
+
+    render(
+      <ProviderConfigDialog
+        provider={{ ...mockProvider, authType: 'oauth' }}
+        open
+        onClose={vi.fn()}
+        onUpdated={onUpdated}
+      />
+    )
+
+    const codexButton = await screen.findByRole('button', {
+      name: /Sign in with Codex/i,
+    })
+    await user.click(codexButton)
+
+    await waitFor(() => {
+      expect(mockDbClient.providers.oauthStartCodexLogin).toHaveBeenCalledWith(
+        'p1'
+      )
+    })
+
+    await waitFor(() => {
+      expect(mockNotify.success).toHaveBeenCalledWith(
+        'Codex OAuth login succeeded (codex@example.com)'
+      )
+    })
+    expect(onUpdated).toHaveBeenCalled()
+  })
+
+  it('should pass oauth client id override when configured', async () => {
+    mockDbClient.settings.get.mockResolvedValueOnce('cid-override')
+    const user = (await import('@testing-library/user-event')).default.setup()
+
+    render(
+      <ProviderConfigDialog
+        provider={{ ...mockProvider, authType: 'oauth' }}
+        open
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />
+    )
+
+    const clientIdInput = await screen.findByPlaceholderText(
+      'Leave empty to use OPENAI_OAUTH_CLIENT_ID'
+    )
+    await waitFor(() => {
+      expect((clientIdInput as HTMLInputElement).value).toBe('cid-override')
+    })
+
+    const signInButton = await screen.findByRole('button', {
+      name: /Sign in with ChatGPT/i,
+    })
+    await user.click(signInButton)
+
+    await waitFor(() => {
+      expect(mockDbClient.providers.oauthStartLogin).toHaveBeenCalledWith(
+        'p1',
+        'cid-override'
+      )
+    })
   })
 
   it('should fetch models manually', async () => {
